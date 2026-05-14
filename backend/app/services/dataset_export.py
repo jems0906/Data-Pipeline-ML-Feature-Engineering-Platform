@@ -6,6 +6,7 @@ import json
 import struct
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 from sqlalchemy.orm import Session
@@ -86,9 +87,11 @@ def time_based_train_test_split(
     timestamp_col: str,
     train_ratio: float,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    sorted_df = df.sort_values(timestamp_col)
+    sorted_df = cast(pd.DataFrame, df.sort_values(timestamp_col))
     split_idx = int(len(sorted_df.index) * train_ratio)
-    return sorted_df.iloc[:split_idx].copy(), sorted_df.iloc[split_idx:].copy()
+    train_df = cast(pd.DataFrame, sorted_df.iloc[:split_idx, :].copy())
+    test_df = cast(pd.DataFrame, sorted_df.iloc[split_idx:, :].copy())
+    return train_df, test_df
 
 
 def generate_data_dictionary(df: pd.DataFrame, output_path: str) -> None:

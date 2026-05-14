@@ -47,6 +47,25 @@ class TrainingJobResponse(BaseModel):
     created_at: datetime
 
 
+class ScaleProofRequest(BaseModel):
+    model_count: int = Field(default=120, ge=1, le=5000)
+    feature_pool_size: int = Field(default=300, ge=1, le=10000)
+    features_per_model: int = Field(default=20, ge=1, le=200)
+    synthetic_rows: int = Field(default=200000, ge=1000, le=5000000)
+    synthetic_partitions: int = Field(default=8, ge=1, le=128)
+
+
+class WarehouseValidationCheck(BaseModel):
+    source_name: str = Field(description="bigquery|snowflake")
+    query: str
+    config: dict = Field(default_factory=dict)
+
+
+class WarehouseValidationRequest(BaseModel):
+    checks: list[WarehouseValidationCheck]
+    fail_fast: bool = False
+
+
 class FeatureLookupRequest(BaseModel):
     entity_id: str
     feature_names: list[str]

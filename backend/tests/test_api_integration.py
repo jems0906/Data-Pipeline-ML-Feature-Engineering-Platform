@@ -174,6 +174,52 @@ def _build_client(monkeypatch) -> TestClient:
             "quality": {"row_count": 2},
         },
     )
+    monkeypatch.setattr(
+        pipelines_routes,
+        "build_lineage_graph",
+        lambda db, run_id="", limit=500: {
+            "nodes": [{"id": "run:r1", "label": "r1", "type": "run"}],
+            "edges": [],
+            "summary": {"runs_covered": 1, "events_covered": 2, "event_type_coverage": 0.6},
+        },
+    )
+    monkeypatch.setattr(
+        pipelines_routes,
+        "run_transformation_benchmark",
+        lambda rows, parts: {
+            "rows_processed": rows,
+            "duration_seconds": 1.0,
+            "rows_per_second": float(rows),
+            "bytes_per_second": float(rows * 100),
+            "projected_petabyte_hours": 999.0,
+        },
+    )
+    monkeypatch.setattr(
+        pipelines_routes,
+        "run_feature_reuse_benchmark",
+        lambda db, model_count, feature_pool_size, features_per_model, source_run_id: {
+            "model_count": model_count,
+            "feature_pool_size": feature_pool_size,
+            "features_per_model": features_per_model,
+            "total_usage_records_written": model_count * features_per_model,
+            "duration_seconds": 1.0,
+            "writes_per_second": float(model_count * features_per_model),
+            "average_models_per_feature": 2.0,
+            "reuse_ratio": 2.0,
+            "target_100_models_met": model_count >= 100,
+        },
+    )
+    monkeypatch.setattr(
+        pipelines_routes,
+        "run_warehouse_validation",
+        lambda db, checks, fail_fast=False: {
+            "checks_total": len(checks),
+            "checks_passed": len(checks),
+            "checks_failed": 0,
+            "results": [{"source_name": check["source_name"], "status": "ok"} for check in checks],
+        },
+    )
+    monkeypatch.setattr(pipelines_routes, "write_proof_report", lambda name, payload: f"../data/metadata/{name}.json")
 
     return TestClient(app)
 
@@ -293,3 +339,54 @@ def test_backfill_endpoint(monkeypatch) -> None:
     body = response.json()
     assert body["run_count"] >= 1
     assert body["runs"][0]["run_id"].startswith("bf-")
+
+
+def test_lineage_graph_endpoint(monkeypatch) -> None:
+    client = _build_client(monkeypatch)
+
+    response = client.get("/api/v1/pipelines/lineage/graph?run_id=run-1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["runs_covered"] == 1
+    assert body["report_path"].endswith("lineage-graph.json")
+
+
+def test_scale_proof_endpoint(monkeypatch) -> None:
+    client = _build_client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/pipelines/proofs/scale",
+        json={
+            "model_count": 120,
+            "feature_pool_size": 300,
+            "features_per_model": 20,
+            "synthetic_rows": 5000,
+            "synthetic_partitions": 4,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["feature_reuse_benchmark"]["target_100_models_met"] is True
+    assert body["report_path"].endswith("scale-proof.json")
+
+
+def test_warehouse_validation_endpoint(monkeypatch) -> None:
+    client = _build_client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/pipelines/proofs/warehouse-validation",
+        json={
+            "checks": [
+                {"source_name": "bigquery", "query": "SELECT 1", "config": {"project": "demo"}},
+                {"source_name": "snowflake", "query": "SELECT 1", "config": {"account": "a", "user": "u", "password": "p"}},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["checks_total"] == 2
+    assert body["checks_failed"] == 0
+    assert body["report_path"].endswith("warehouse-validation.json")

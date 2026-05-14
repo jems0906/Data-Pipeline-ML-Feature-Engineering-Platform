@@ -45,6 +45,39 @@ export async function runBackfill(payload) {
   return res.json();
 }
 
+export async function fetchLineageGraph({ runId = "", limit = 500 } = {}) {
+  const params = new URLSearchParams({ run_id: runId, limit: String(limit) });
+  const res = await fetch(`${API_BASE}/pipelines/lineage/graph?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch lineage graph");
+  return res.json();
+}
+
+export async function runScaleProof(payload) {
+  const res = await fetch(`${API_BASE}/pipelines/proofs/scale`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || "Failed to run scale proof");
+  }
+  return res.json();
+}
+
+export async function runWarehouseValidation(payload) {
+  const res = await fetch(`${API_BASE}/pipelines/proofs/warehouse-validation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || "Failed to run warehouse validation");
+  }
+  return res.json();
+}
+
 export async function fetchFeatures(search = "") {
   const params = new URLSearchParams({ search });
   const res = await fetch(`${API_BASE}/features?${params.toString()}`);

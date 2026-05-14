@@ -67,6 +67,9 @@ python -m orchestration.prefect_flows.main_flow
 - `POST /api/v1/pipelines/realtime-event`
 - `GET /api/v1/pipelines/alerts`
 - `POST /api/v1/pipelines/alerts/dispatch`
+- `POST /api/v1/pipelines/proofs/scale`
+- `POST /api/v1/pipelines/proofs/warehouse-validation`
+- `GET /api/v1/pipelines/lineage/graph`
 - `GET /api/v1/features`
 - `POST /api/v1/features/lookup`
 - `GET /api/v1/features/usage`
@@ -132,6 +135,24 @@ Demo UI and local flow runs keep `allow_demo_fallback: true` so the sample pipel
 - Move scheduler to managed Prefect/Airflow deployment
 - Add Great Expectations/Deequ for enterprise data quality
 - Replace TFRecord placeholder with native TensorFlow serializer where needed
+
+## Scale and Warehouse Proof Runs
+Use these endpoints to generate measurable reports under `data/metadata/`:
+
+1. Scale and 100+ model reuse proof:
+```bash
+Invoke-RestMethod -Method Post -ContentType "application/json" -Uri http://127.0.0.1:8010/api/v1/pipelines/proofs/scale -Body '{"model_count":120,"feature_pool_size":300,"features_per_model":20,"synthetic_rows":200000,"synthetic_partitions":8}'
+```
+
+2. Enterprise lineage graph materialization:
+```bash
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8010/api/v1/pipelines/lineage/graph?limit=500"
+```
+
+3. Production warehouse validation (requires valid credentials in payload or env):
+```bash
+Invoke-RestMethod -Method Post -ContentType "application/json" -Uri http://127.0.0.1:8010/api/v1/pipelines/proofs/warehouse-validation -Body '{"checks":[{"source_name":"bigquery","query":"SELECT 1","config":{"project":"your-project"}},{"source_name":"snowflake","query":"SELECT 1","config":{"account":"your-account","user":"user","password":"password"}}]}'
+```
 
 ## Known Windows Workarounds
 - Some endpoint protection policies can block native binaries when executed from `node_modules` (for example `esbuild.exe` and native Rollup modules).

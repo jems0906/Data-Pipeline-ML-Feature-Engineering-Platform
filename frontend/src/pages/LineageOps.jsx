@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { fetchPipelineLineage, fetchTrainingJobs, runBackfill, triggerTrainingJob } from "../api/client";
+import {
+  fetchLineageGraph,
+  fetchPipelineLineage,
+  fetchTrainingJobs,
+  runBackfill,
+  runScaleProof,
+  runWarehouseValidation,
+  triggerTrainingJob,
+} from "../api/client";
 
 const initialBackfill = {
   run_id_prefix: "backfill-ui",
@@ -27,6 +35,7 @@ export default function LineageOps() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [backfillBusy, setBackfillBusy] = useState(false);
+  const [proofSummary, setProofSummary] = useState(null);
 
   async function loadData(filterRunId = "") {
     try {
@@ -70,6 +79,45 @@ export default function LineageOps() {
     }
   }
 
+  async function onRunScaleProof() {
+    setError("");
+    const proof = await runScaleProof({
+      model_count: 120,
+      feature_pool_size: 300,
+      features_per_model: 20,
+      synthetic_rows: 50000,
+      synthetic_partitions: 4,
+    });
+    setProofSummary({
+      title: "Scale Proof",
+      details: `models=${proof.feature_reuse_benchmark.model_count}, target100=${proof.feature_reuse_benchmark.target_100_models_met}, projected_petabyte_hours=${proof.transformation_benchmark.projected_petabyte_hours.toFixed(2)}`,
+    });
+    await loadData(runId);
+  }
+
+  async function onLoadLineageGraph() {
+    setError("");
+    const graph = await fetchLineageGraph({ runId, limit: 500 });
+    setProofSummary({
+      title: "Lineage Graph",
+      details: `runs=${graph.summary.runs_covered}, events=${graph.summary.events_covered}, coverage=${(graph.summary.event_type_coverage * 100).toFixed(1)}%`,
+    });
+  }
+
+  async function onRunWarehouseValidation() {
+    setError("");
+    const report = await runWarehouseValidation({
+      checks: [
+        { source_name: "bigquery", query: "SELECT 1", config: {} },
+        { source_name: "snowflake", query: "SELECT 1", config: {} },
+      ],
+    });
+    setProofSummary({
+      title: "Warehouse Validation",
+      details: `checks=${report.checks_total}, passed=${report.checks_passed}, failed=${report.checks_failed}`,
+    });
+  }
+
   return (
     <section className="panel ops-grid-panel">
       <div className="ops-controls">
@@ -96,8 +144,18 @@ export default function LineageOps() {
           <button type="button" className="primary" onClick={onRunBackfill} disabled={backfillBusy}>
             {backfillBusy ? "Running Backfill..." : "Run Backfill"}
           </button>
+          <button type="button" className="primary secondary-action" onClick={onRunScaleProof}>
+            Run Scale Proof
+          </button>
+          <button type="button" className="primary secondary-action" onClick={onLoadLineageGraph}>
+            Build Lineage Graph
+          </button>
+          <button type="button" className="primary secondary-action" onClick={onRunWarehouseValidation}>
+            Validate Warehouses
+          </button>
         </div>
         {status && <p className="dispatch-summary">{status}</p>}
+        {proofSummary && <p className="dispatch-summary">{proofSummary.title}: {proofSummary.details}</p>}
         {error && <pre className="error-box">{error}</pre>}
       </div>
 

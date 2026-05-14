@@ -10,13 +10,28 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.schemas.pipeline import BackfillRequest, PipelineRunRequest, QualityReport, RealtimeIngestionRequest, TrainingJobRequest
+from app.schemas.pipeline import (
+    BackfillRequest,
+    PipelineRunRequest,
+    QualityReport,
+    RealtimeIngestionRequest,
+    ScaleProofRequest,
+    TrainingJobRequest,
+    WarehouseValidationRequest,
+)
 from app.services.automation import detect_data_drift, detect_schema_changes, should_trigger_retraining, suggest_new_features
 from app.services.alerts import dispatch_recent_alerts
 from app.services.dataset_export import export_dataset, generate_data_dictionary, time_based_train_test_split
 from app.services.feature_store import FeatureStoreService
 from app.services.ingestion import IngestionService
 from app.services.lineage import list_lineage_events, track_lineage
+from app.services.proofs import (
+    build_lineage_graph,
+    run_feature_reuse_benchmark,
+    run_transformation_benchmark,
+    run_warehouse_validation,
+    write_proof_report,
+)
 from app.services.training import list_training_jobs, schedule_training_job
 from app.services.transformation import (
     apply_time_series_features,
@@ -437,6 +452,59 @@ def backfill_pipeline(payload: BackfillRequest, db: Session = Depends(get_db)) -
 @router.get("/lineage")
 def get_lineage(run_id: str = "", limit: int = 100, db: Session = Depends(get_db)) -> list[dict]:
     return list_lineage_events(db, run_id=run_id, limit=limit)
+
+
+@router.get("/lineage/graph")
+def get_lineage_graph(run_id: str = "", limit: int = 500, db: Session = Depends(get_db)) -> dict:
+    graph = build_lineage_graph(db, run_id=run_id, limit=limit)
+    report_path = write_proof_report("lineage-graph", graph)
+    return {
+        **graph,
+        "report_path": report_path,
+    }
+
+
+@router.post("/proofs/scale")
+def run_scale_proof(payload: ScaleProofRequest, db: Session = Depends(get_db)) -> dict:
+    proof_run_id = f"scale-proof-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
+    transform = run_transformation_benchmark(payload.synthetic_rows, payload.synthetic_partitions)
+    reuse = run_feature_reuse_benchmark(
+        db=db,
+        model_count=payload.model_count,
+        feature_pool_size=payload.feature_pool_size,
+        features_per_model=payload.features_per_model,
+        source_run_id=proof_run_id,
+    )
+
+    summary = {
+        "proof_run_id": proof_run_id,
+        "transformation_benchmark": transform,
+        "feature_reuse_benchmark": reuse,
+        "claims": {
+            "target_100_models_met": reuse["target_100_models_met"],
+            "projected_petabyte_hours": transform["projected_petabyte_hours"],
+            "benchmark_based_projection": True,
+        },
+    }
+    report_path = write_proof_report("scale-proof", summary)
+    return {
+        **summary,
+        "report_path": report_path,
+    }
+
+
+@router.post("/proofs/warehouse-validation")
+def validate_production_warehouses(payload: WarehouseValidationRequest, db: Session = Depends(get_db)) -> dict:
+    result = run_warehouse_validation(
+        db=db,
+        checks=[{"source_name": check.source_name, "query": check.query, "config": check.config} for check in payload.checks],
+        fail_fast=payload.fail_fast,
+    )
+    report_path = write_proof_report("warehouse-validation", result)
+    return {
+        **result,
+        "report_path": report_path,
+    }
 
 
 @router.get("/training-jobs")

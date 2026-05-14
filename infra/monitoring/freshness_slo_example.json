@@ -1,0 +1,6 @@
+{
+  "slo_name": "daily_features_freshness",
+  "target_table": "feature_values",
+  "max_lag_seconds": 3600,
+  "alert_channels": ["slack://data-platform-alerts", "email://ml-ops@company.com"]
+}

@@ -1,0 +1,14 @@
+{
+  "include": [
+    "backend"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": [
+        "backend",
+        "C:/Users/jddorvi/AppData/Roaming/Python/Python314/site-packages"
+      ]
+    }
+  ]
+}

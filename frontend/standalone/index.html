@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Pipeline & ML Feature Engineering Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      :root {
+        --bg-1: #f4ede1;
+        --bg-2: #f8f3ea;
+        --ink: #1f1e1b;
+        --accent: #d7561f;
+        --accent-2: #1f7a8c;
+        --panel: rgba(255, 254, 249, 0.85);
+        --border: rgba(31, 30, 27, 0.14);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Space Grotesk", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at 10% 20%, #ffe7bb, transparent 38%), radial-gradient(circle at 90% 10%, #b0e5dd, transparent 40%), linear-gradient(140deg, var(--bg-1), var(--bg-2));
+      }
+      .app-shell { position: relative; max-width: 1100px; margin: 0 auto; padding: 1.25rem; }
+      .bg-orb { position: fixed; border-radius: 999px; filter: blur(32px); z-index: -1; animation: float 12s ease-in-out infinite; }
+      .orb-a { width: 240px; height: 240px; left: -40px; top: 120px; background: rgba(255, 143, 91, 0.33); }
+      .orb-b { width: 220px; height: 220px; right: 0; bottom: 10%; background: rgba(31, 122, 140, 0.27); }
+      @keyframes float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+      h1 { margin: 0.25rem 0 0.8rem; letter-spacing: 0.02em; }
+      .tab-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      .tab { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 0.5rem 0.85rem; cursor: pointer; font-family: "IBM Plex Mono", monospace; }
+      .tab.active { background: var(--accent); color: #fff; }
+      .panel { margin-top: 1rem; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: reveal 450ms ease; }
+      .health-strip { margin-top: 0.8rem; border: 1px solid var(--border); border-radius: 12px; background: rgba(255, 255, 255, 0.7); padding: 0.75rem; }
+      .health-header { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+      .health-title { margin: 0; font-size: 0.92rem; font-family: "IBM Plex Mono", monospace; }
+      .status-chip { border-radius: 999px; padding: 0.18rem 0.6rem; font-size: 0.75rem; font-family: "IBM Plex Mono", monospace; border: 1px solid transparent; text-transform: uppercase; }
+      .status-ok { color: #0f5d1f; background: #daf4e0; border-color: #b8e8c4; }
+      .status-degraded { color: #7a4f00; background: #ffefcc; border-color: #f1d28a; }
+      .status-error { color: #7a1313; background: #ffdede; border-color: #efb1b1; }
+      .status-unknown { color: #444; background: #ececec; border-color: #d8d8d8; }
+      .dep-grid { margin-top: 0.65rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.45rem; }
+      .dep-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.55rem; background: #fff; }
+      .dep-card strong { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; }
+      .dep-detail { margin-top: 0.35rem; font-size: 0.75rem; opacity: 0.85; }
+      @keyframes reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      .stage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.6rem; margin: 1rem 0; }
+      .stage-card { padding: 0.9rem; border: 1px dashed rgba(31, 30, 27, 0.4); border-radius: 12px; background: #fff; }
+      .primary { border: 0; border-radius: 12px; background: linear-gradient(90deg, var(--accent), #f27e3f); color: white; padding: 0.65rem 1rem; font-weight: 600; cursor: pointer; }
+      .code-box, .error-box { padding: 0.75rem; border-radius: 10px; font-family: "IBM Plex Mono", monospace; overflow: auto; white-space: pre-wrap; }
+      .code-box { background: #161b22; color: #d7f9ff; }
+      .error-box { background: #4a1e1e; color: #ffd1d1; }
+      .search { width: min(420px, 100%); padding: 0.6rem; border-radius: 10px; border: 1px solid var(--border); }
+      .table-wrap { overflow: auto; margin-top: 0.8rem; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; border-bottom: 1px solid var(--border); padding: 0.5rem 0.35rem; }
+      .bar-row { display: grid; grid-template-columns: 140px 1fr 72px; gap: 0.6rem; align-items: center; margin-bottom: 0.45rem; }
+      .bar { height: 10px; border-radius: 999px; background: #dadad2; overflow: hidden; }
+      .bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), #2dc0d0); }
+      .usage-list { margin: 0; padding: 0; list-style: none; }
+      .usage-list li { display: grid; grid-template-columns: 1.2fr 1fr 1fr; padding: 0.6rem 0.3rem; border-bottom: 1px solid var(--border); }
+      @media (max-width: 740px) {
+        .bar-row { grid-template-columns: 1fr; }
+        .usage-list li { grid-template-columns: 1fr; gap: 0.2rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const API_BASE = `${window.location.origin}/api/v1`;
+      const { useEffect, useState } = React;
+
+      async function fetchQualityReport() {
+        const res = await fetch(`${API_BASE}/pipelines/quality-report`, { method: "POST" });
+        if (!res.ok) throw new Error("Failed to fetch quality report");
+        return res.json();
+      }
+
+      async function fetchFeatures(search = "") {
+        const params = new URLSearchParams({ search });
+        const res = await fetch(`${API_BASE}/features?${params.toString()}`);
+        if (!res.ok) throw new Error("Failed to fetch features");
+        return res.json();
+      }
+
+      async function fetchDependencyHealth() {
+        const res = await fetch(`${API_BASE}/health/dependencies`);
+        if (!res.ok) throw new Error("Failed to fetch dependency health");
+        return res.json();
+      }
+
+      async function runPipeline(payload) {
+        const res = await fetch(`${API_BASE}/pipelines/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const detail = await res.text();
+          throw new Error(detail || "Failed to run pipeline");
+        }
+        return res.json();
+      }
+
+      function TopNav({ current, setCurrent }) {
+        const tabs = ["Pipeline Builder", "Quality Dashboard", "Feature Catalog", "Usage Tracking"];
+        return (
+          <nav>
+            <h1>FlowForge ML Data Platform</h1>
+            <div className="tab-row">
+              {tabs.map((tab) => (
+                <button key={tab} type="button" className={current === tab ? "tab active" : "tab"} onClick={() => setCurrent(tab)}>
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </nav>
+        );
+      }
+
+      function statusClass(status) {
+        if (status === "ok") return "status-chip status-ok";
+        if (status === "degraded") return "status-chip status-degraded";
+        if (status === "error") return "status-chip status-error";
+        return "status-chip status-unknown";
+      }
+
+      function DependencyHealthStrip() {
+        const [payload, setPayload] = useState(null);
+        const [error, setError] = useState("");
+
+        async function loadHealth() {
+          try {
+            const data = await fetchDependencyHealth();
+            setPayload(data);
+            setError("");
+          } catch (err) {
+            setError(String(err.message || err));
+          }
+        }
+
+        useEffect(() => {
+          loadHealth();
+          const timerId = setInterval(loadHealth, 15000);
+          return () => clearInterval(timerId);
+        }, []);
+
+        return (
+          <section className="health-strip">
+            <div className="health-header">
+              <p className="health-title">Dependency Health</p>
+              <span className={statusClass(payload?.status || "unknown")}>{payload?.status || "unknown"}</span>
+            </div>
+            {error && <div className="dep-detail">{error}</div>}
+            {!error && payload?.dependencies && (
+              <div className="dep-grid">
+                {Object.entries(payload.dependencies).map(([name, check]) => (
+                  <div key={name} className="dep-card">
+                    <strong>{name}</strong>
+                    <span className={statusClass(check.status)}>{check.status}</span>
+                    <div className="dep-detail">{check.detail}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!error && payload?.checked_at && <div className="dep-detail">checked at {payload.checked_at}</div>}
+          </section>
+        );
+      }
+
+      function PipelineBuilder() {
+        const [result, setResult] = useState(null);
+        const [error, setError] = useState("");
+        const [busy, setBusy] = useState(false);
+
+        async function onRun() {
+          setBusy(true);
+          setError("");
+          const payload = {
+            run_id: `browser-run-${Date.now()}`,
+            source: {
+              source_type: "warehouse",
+              source_name: "bigquery",
+              config: {
+                rows: [
+                  { entity_id: "u1", event_ts: "2026-01-01T00:00:00Z", amount: 10.0 },
+                  { entity_id: "u1", event_ts: "2026-01-02T00:00:00Z", amount: 12.0 },
+                  { entity_id: "u2", event_ts: "2026-01-03T00:00:00Z", amount: 9.5 },
+                ],
+              },
+            },
+            transformations: {
+              required_columns: ["entity_id", "event_ts", "amount"],
+              feature_engineering: [{ name: "amount_x2", expression: "amount * 2" }],
+              register_features: [{ name: "amount_x2", entity_key: "entity_id", dtype: "float" }],
+            },
+          };
+          try {
+            const data = await runPipeline(payload);
+            setResult(data);
+          } catch (err) {
+            setError(String(err.message || err));
+          } finally {
+            setBusy(false);
+          }
+        }
+
+        return (
+          <section className="panel">
+            <h2>Visual Pipeline Builder</h2>
+            <p>Run a browser-driven sample pipeline against the live FastAPI backend without the blocked Node build step.</p>
+            <div className="stage-grid">
+              {["Ingestion", "Validation", "Feature Engineering", "Point-in-Time Store", "Export"].map((stage) => (
+                <div key={stage} className="stage-card"><span>{stage}</span></div>
+              ))}
+            </div>
+            <button type="button" className="primary" onClick={onRun} disabled={busy}>{busy ? "Running..." : "Run Sample Pipeline"}</button>
+            {error && <pre className="error-box">{error}</pre>}
+            {result && <pre className="code-box">{JSON.stringify(result, null, 2)}</pre>}
+          </section>
+        );
+      }
+
+      function QualityDashboard() {
+        const [report, setReport] = useState(null);
+        useEffect(() => {
+          fetchQualityReport().then(setReport).catch(() => setReport(null));
+        }, []);
+
+        const renderBar = (label, value) => (
+          <div className="bar-row" key={label}>
+            <strong>{label}</strong>
+            <div className="bar"><span style={{ width: `${Math.min(100, Math.round(value * 100))}%` }} /></div>
+            <em>{(value * 100).toFixed(1)}%</em>
+          </div>
+        );
+
+        return (
+          <section className="panel">
+            <h2>Data Quality Dashboard</h2>
+            {!report && <p>Loading quality metrics...</p>}
+            {report && (
+              <>
+                <p>Rows scanned: {report.row_count}</p>
+                <h3>Missing Rates</h3>
+                {Object.entries(report.missing_rates).map(([k, v]) => renderBar(k, v))}
+                <h3>Outlier Rates</h3>
+                {Object.entries(report.outlier_rates).map(([k, v]) => renderBar(k, v))}
+              </>
+            )}
+          </section>
+        );
+      }
+
+      function FeatureCatalog() {
+        const [search, setSearch] = useState("");
+        const [items, setItems] = useState([]);
+        useEffect(() => {
+          fetchFeatures(search).then(setItems).catch(() => setItems([]));
+        }, [search]);
+
+        return (
+          <section className="panel">
+            <h2>Feature Catalog</h2>
+            <input className="search" placeholder="Search features" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Entity Key</th>
+                    <th>Type</th>
+                    <th>Schema Version</th>
+                    <th>Freshness (s)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.name}>
+                      <td>{item.name}</td>
+                      <td>{item.entity_key}</td>
+                      <td>{item.dtype}</td>
+                      <td>{item.schema_version}</td>
+                      <td>{item.freshness_seconds}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        );
+      }
+
+      function UsageTracking() {
+        const sampleUsage = [
+          { model: "fraud-detection-v4", feature: "amount_x2", usage: "training+inference" },
+          { model: "churn-ltv-v2", feature: "txn_roll_mean_30", usage: "training" },
+          { model: "recommendation-rt", feature: "session_lag_1", usage: "inference" },
+        ];
+        return (
+          <section className="panel">
+            <h2>Feature Usage Tracking</h2>
+            <ul className="usage-list">
+              {sampleUsage.map((row) => (
+                <li key={`${row.model}-${row.feature}`}>
+                  <strong>{row.model}</strong>
+                  <span>{row.feature}</span>
+                  <em>{row.usage}</em>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      }
+
+      function App() {
+        const [current, setCurrent] = useState("Pipeline Builder");
+        return (
+          <div className="app-shell">
+            <div className="bg-orb orb-a"></div>
+            <div className="bg-orb orb-b"></div>
+            <TopNav current={current} setCurrent={setCurrent} />
+            <DependencyHealthStrip />
+            <main>
+              {current === "Pipeline Builder" && <PipelineBuilder />}
+              {current === "Quality Dashboard" && <QualityDashboard />}
+              {current === "Feature Catalog" && <FeatureCatalog />}
+              {current === "Usage Tracking" && <UsageTracking />}
+            </main>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>

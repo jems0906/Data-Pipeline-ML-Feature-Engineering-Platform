@@ -39,7 +39,8 @@ services:
     plan: free
     ipAllowList: []
 
-  - type: static
+  - type: web
+    env: static
     name: data-pipeline-ml-ui
     rootDir: frontend
     buildCommand: npm ci --ignore-scripts=false && npm run build

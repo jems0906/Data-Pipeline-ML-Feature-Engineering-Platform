@@ -1,7 +1,3 @@
 {
-  "python.defaultInterpreterPath": "C:/Python314/python.exe",
-  "python.analysis.extraPaths": [
-    "backend",
-    "C:/Users/jddorvi/AppData/Roaming/Python/Python314/site-packages"
-  ]
+  "python.defaultInterpreterPath": "C:/Python314/python.exe"
 }

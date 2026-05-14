@@ -2,6 +2,7 @@ import { useState } from "react";
 import TopNav from "./components/TopNav";
 import DependencyHealthStrip from "./components/DependencyHealthStrip";
 import FeatureCatalog from "./pages/FeatureCatalog";
+import LineageOps from "./pages/LineageOps";
 import PipelineBuilder from "./pages/PipelineBuilder";
 import QualityDashboard from "./pages/QualityDashboard";
 import UsageTracking from "./pages/UsageTracking";
@@ -20,6 +21,7 @@ export default function App() {
         {current === "Quality Dashboard" && <QualityDashboard />}
         {current === "Feature Catalog" && <FeatureCatalog />}
         {current === "Usage Tracking" && <UsageTracking />}
+        {current === "Lineage & Ops" && <LineageOps />}
       </main>
     </div>
   );

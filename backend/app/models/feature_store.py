@@ -80,3 +80,15 @@ class FeatureUsage(Base):
     usage: Mapped[str] = mapped_column(String(64), default="training")
     source_run_id: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TrainingJob(Base):
+    __tablename__ = "training_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_run_id: Mapped[str] = mapped_column(String(255), index=True)
+    status: Mapped[str] = mapped_column(String(64), index=True, default="scheduled")
+    trigger_reason: Mapped[str] = mapped_column(Text, default="")
+    artifact_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

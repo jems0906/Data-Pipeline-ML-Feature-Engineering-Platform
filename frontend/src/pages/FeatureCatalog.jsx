@@ -28,6 +28,8 @@ export default function FeatureCatalog() {
               <th>Type</th>
               <th>Schema Version</th>
               <th>Freshness (s)</th>
+              <th>Usage Events</th>
+              <th>Models</th>
             </tr>
           </thead>
           <tbody>
@@ -38,6 +40,8 @@ export default function FeatureCatalog() {
                 <td>{item.dtype}</td>
                 <td>{item.schema_version}</td>
                 <td>{item.freshness_seconds}</td>
+                <td>{item.usage_count}</td>
+                <td>{item.model_count}</td>
               </tr>
             ))}
           </tbody>

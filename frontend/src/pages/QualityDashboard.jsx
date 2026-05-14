@@ -13,6 +13,30 @@ function Bar({ label, value }) {
   );
 }
 
+function Distribution({ label, buckets }) {
+  if (!buckets?.length) {
+    return null;
+  }
+
+  const maxCount = Math.max(...buckets.map((bucket) => bucket.count || 0), 1);
+  return (
+    <div className="distribution-card">
+      <strong>{label}</strong>
+      <div className="distribution-bars">
+        {buckets.map((bucket, index) => (
+          <div key={`${label}-${index}`} className="distribution-bin">
+            <span
+              className="distribution-fill"
+              style={{ height: `${Math.max(8, ((bucket.count || 0) / maxCount) * 100)}%` }}
+            />
+            <small>{bucket.count}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function QualityDashboard() {
   const [report, setReport] = useState(null);
   const [alerts, setAlerts] = useState([]);
@@ -65,6 +89,13 @@ export default function QualityDashboard() {
           {Object.entries(report.outlier_rates).map(([k, v]) => (
             <Bar key={k} label={k} value={v} />
           ))}
+
+          <h3>Distributions</h3>
+          <div className="distribution-grid">
+            {Object.entries(report.distributions || {}).map(([k, buckets]) => (
+              <Distribution key={k} label={k} buckets={buckets} />
+            ))}
+          </div>
 
           <div className="quality-alerts">
             <div className="quality-alerts-header">

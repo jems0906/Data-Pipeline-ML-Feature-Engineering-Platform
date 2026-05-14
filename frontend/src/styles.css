@@ -339,6 +339,65 @@ td {
   font-size: 0.82rem;
 }
 
+.distribution-grid,
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+
+.distribution-card,
+.ops-grid-panel {
+  border-radius: 12px;
+}
+
+.distribution-card {
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0.7rem;
+}
+
+.distribution-bars {
+  margin-top: 0.65rem;
+  display: flex;
+  align-items: end;
+  gap: 0.35rem;
+  min-height: 120px;
+}
+
+.distribution-bin {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.distribution-fill {
+  width: 100%;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #1f7a8c, #2cbecf);
+}
+
+.ops-controls {
+  margin-bottom: 1rem;
+}
+
+.events-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.events-list li {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.3fr;
+  gap: 0.4rem;
+  padding: 0.6rem 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+
 .usage-form {
   margin-bottom: 0.8rem;
   display: grid;
@@ -364,6 +423,10 @@ td {
   }
 
   .alerts-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .events-list li {
     grid-template-columns: 1fr;
   }
 

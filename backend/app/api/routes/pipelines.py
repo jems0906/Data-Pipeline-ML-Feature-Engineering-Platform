@@ -10,19 +10,20 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.schemas.pipeline import PipelineRunRequest, QualityReport, RealtimeIngestionRequest
-from app.services.automation import detect_schema_changes, should_trigger_retraining, suggest_new_features
+from app.schemas.pipeline import BackfillRequest, PipelineRunRequest, QualityReport, RealtimeIngestionRequest, TrainingJobRequest
+from app.services.automation import detect_data_drift, detect_schema_changes, should_trigger_retraining, suggest_new_features
 from app.services.alerts import dispatch_recent_alerts
 from app.services.dataset_export import export_dataset, generate_data_dictionary, time_based_train_test_split
 from app.services.feature_store import FeatureStoreService
 from app.services.ingestion import IngestionService
-from app.services.lineage import track_lineage
+from app.services.lineage import list_lineage_events, track_lineage
+from app.services.training import list_training_jobs, schedule_training_job
 from app.services.transformation import (
     apply_time_series_features,
     apply_transformations,
     handle_missing_and_outliers,
 )
-from app.services.validation import compute_missing_rates, detect_outlier_rates, validate_ranges, validate_schema
+from app.services.validation import compute_missing_rates, compute_numeric_distributions, detect_outlier_rates, validate_ranges, validate_schema
 
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
@@ -219,8 +220,7 @@ def _materialize_feature_values(
     return writes
 
 
-@router.post("/run")
-def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> dict:
+def _execute_pipeline(payload: PipelineRunRequest, db: Session) -> dict:
     ingestion_service = IngestionService(db)
     store = FeatureStoreService(db)
 
@@ -230,7 +230,7 @@ def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> 
         source_name=payload.source.source_name,
         config=payload.source.config,
     )
-    track_lineage(db, payload.run_id, "ingestion_complete", {"rows": int(len(raw_df.index))})
+    track_lineage(db, payload.run_id, "ingestion_complete", {"rows": int(len(raw_df.index)), "source": payload.source.source_name})
 
     validation_errors = validate_schema(raw_df, payload.transformations.get("required_columns", []))
     validation_errors.extend(validate_ranges(raw_df, payload.transformations.get("range_checks", {})))
@@ -247,6 +247,10 @@ def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> 
             lag_steps=ts_cfg.get("lag_steps", [1, 7]),
             rolling_windows=ts_cfg.get("rolling_windows", [7, 30]),
         )
+
+    join_targets = payload.transformations.get("joins", [])
+    if join_targets:
+        track_lineage(db, payload.run_id, "join_config_detected", {"joins": len(join_targets)})
 
     transformed = handle_missing_and_outliers(transformed, strategy=payload.transformations.get("impute", "median"))
 
@@ -292,6 +296,11 @@ def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> 
     suggested_features = suggest_new_features(transformed)
     missing_rates = compute_missing_rates(transformed)
     outlier_rates = detect_outlier_rates(transformed, settings.outlier_zscore_threshold)
+    distributions = compute_numeric_distributions(transformed)
+    drift_reference = raw_df.select_dtypes(include=["number"])
+    drift_live = transformed.select_dtypes(include=["number"])
+    drift_scores = detect_data_drift(drift_reference, drift_live) if not drift_reference.empty and not drift_live.empty else {}
+    trigger_retraining = should_trigger_retraining(drift_scores)
 
     alert_count = _persist_quality_alerts(
         db=db,
@@ -306,6 +315,16 @@ def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> 
         transformed=transformed,
         feature_defs=feature_defs,
     )
+
+    training_job = None
+    if trigger_retraining:
+        training_job = schedule_training_job(
+            db=db,
+            source_run_id=payload.run_id,
+            trigger_reason="drift_threshold_exceeded",
+            payload={"drift_scores": drift_scores, "feature_count": len(feature_defs)},
+        )
+
     db.commit()
 
     track_lineage(
@@ -316,6 +335,7 @@ def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> 
             "train_version": train_export["version"],
             "test_version": test_export["version"],
             "dictionary": str(dict_path),
+            "trigger_retraining": trigger_retraining,
         },
     )
 
@@ -328,12 +348,15 @@ def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> 
             "row_count": int(len(transformed.index)),
             "missing_rates": missing_rates,
             "outlier_rates": outlier_rates,
+            "distributions": distributions,
             "validation_errors": validation_errors,
         },
         "automation": {
             "schema_changes": schema_changes,
             "suggested_features": suggested_features,
-            "trigger_retraining": should_trigger_retraining({}),
+            "drift_scores": drift_scores,
+            "trigger_retraining": trigger_retraining,
+            "training_job_id": training_job.id if training_job else None,
         },
         "feature_store": {
             "registered_features": len(feature_defs),
@@ -344,6 +367,11 @@ def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> 
             "created": alert_count,
         },
     }
+
+
+@router.post("/run")
+def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> dict:
+    return _execute_pipeline(payload, db)
 
 
 @router.post("/quality-report", response_model=QualityReport)
@@ -361,8 +389,94 @@ def quality_report(sample_rows: int = 1000, db: Session = Depends(get_db)) -> Qu
         row_count=int(len(df.index)),
         missing_rates=compute_missing_rates(df),
         outlier_rates=detect_outlier_rates(df, settings.outlier_zscore_threshold),
+        distributions=compute_numeric_distributions(df),
         validation_errors=[],
     )
+
+
+@router.post("/backfill")
+def backfill_pipeline(payload: BackfillRequest, db: Session = Depends(get_db)) -> dict:
+    runs: list[dict] = []
+    current = payload.start_date
+    window_index = 0
+    while current <= payload.end_date:
+        window_end = min(payload.end_date, current + pd.Timedelta(days=payload.window_days))
+        config = dict(payload.source.config)
+        config["backfill_window"] = {
+            "start": current.isoformat(),
+            "end": window_end.isoformat(),
+        }
+        run_payload = PipelineRunRequest(
+            run_id=f"{payload.run_id_prefix}-{window_index:03d}",
+            source={
+                "source_type": payload.source.source_type,
+                "source_name": payload.source.source_name,
+                "config": config,
+            },
+            transformations=payload.transformations,
+        )
+        result = _execute_pipeline(run_payload, db)
+        runs.append(
+            {
+                "run_id": result["run_id"],
+                "start": current.isoformat(),
+                "end": window_end.isoformat(),
+                "row_count": result["quality"]["row_count"],
+            }
+        )
+        track_lineage(db, result["run_id"], "backfill_window_complete", runs[-1])
+        current = window_end + pd.Timedelta(seconds=1)
+        window_index += 1
+
+    return {
+        "run_count": len(runs),
+        "runs": runs,
+    }
+
+
+@router.get("/lineage")
+def get_lineage(run_id: str = "", limit: int = 100, db: Session = Depends(get_db)) -> list[dict]:
+    return list_lineage_events(db, run_id=run_id, limit=limit)
+
+
+@router.get("/training-jobs")
+def get_training_jobs(limit: int = 50, db: Session = Depends(get_db)) -> list[dict]:
+    return list_training_jobs(db, limit=limit)
+
+
+@router.post("/training-jobs/trigger")
+def trigger_training_job(payload: TrainingJobRequest, db: Session = Depends(get_db)) -> dict:
+    should_schedule = payload.force or should_trigger_retraining(payload.drift_scores)
+    if not should_schedule:
+        return {
+            "scheduled": False,
+            "reason": "drift_below_threshold",
+            "source_run_id": payload.source_run_id,
+        }
+
+    job = schedule_training_job(
+        db=db,
+        source_run_id=payload.source_run_id,
+        trigger_reason="manual_force" if payload.force else "drift_threshold_exceeded",
+        payload={"drift_scores": payload.drift_scores, "forced": payload.force},
+    )
+    track_lineage(
+        db,
+        payload.source_run_id,
+        "training_job_scheduled",
+        {"training_job_id": job.id, "reason": job.trigger_reason},
+    )
+    return {
+        "scheduled": True,
+        "training_job": {
+            "id": job.id,
+            "source_run_id": job.source_run_id,
+            "status": job.status,
+            "trigger_reason": job.trigger_reason,
+            "artifact_path": job.artifact_path,
+            "created_at": job.created_at.isoformat(),
+        },
+    }
 
 
 @router.post("/realtime-event")

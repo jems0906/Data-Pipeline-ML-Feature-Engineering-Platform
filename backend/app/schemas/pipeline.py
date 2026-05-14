@@ -19,7 +19,32 @@ class QualityReport(BaseModel):
     row_count: int
     missing_rates: dict[str, float]
     outlier_rates: dict[str, float]
+    distributions: dict[str, list[dict[str, float | int]] | list[dict[str, str]]] = Field(default_factory=dict)
     validation_errors: list[str] = Field(default_factory=list)
+
+
+class BackfillRequest(BaseModel):
+    run_id_prefix: str = Field(default="backfill")
+    start_date: datetime
+    end_date: datetime
+    window_days: int = Field(default=1, ge=1, le=30)
+    source: IngestionRequest
+    transformations: dict = Field(default_factory=dict)
+
+
+class TrainingJobRequest(BaseModel):
+    source_run_id: str
+    drift_scores: dict[str, float] = Field(default_factory=dict)
+    force: bool = False
+
+
+class TrainingJobResponse(BaseModel):
+    id: int
+    source_run_id: str
+    status: str
+    trigger_reason: str
+    artifact_path: str | None = None
+    created_at: datetime
 
 
 class FeatureLookupRequest(BaseModel):

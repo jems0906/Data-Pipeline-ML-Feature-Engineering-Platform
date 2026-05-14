@@ -1,5 +1,5 @@
 export default function TopNav({ current, setCurrent }) {
-  const tabs = ["Pipeline Builder", "Quality Dashboard", "Feature Catalog", "Usage Tracking"];
+  const tabs = ["Pipeline Builder", "Quality Dashboard", "Feature Catalog", "Usage Tracking", "Lineage & Ops"];
 
   return (
     <nav className="top-nav">

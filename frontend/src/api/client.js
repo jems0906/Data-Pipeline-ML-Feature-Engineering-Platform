@@ -6,6 +6,45 @@ export async function fetchQualityReport() {
   return res.json();
 }
 
+export async function fetchPipelineLineage({ runId = "", limit = 50 } = {}) {
+  const params = new URLSearchParams({ run_id: runId, limit: String(limit) });
+  const res = await fetch(`${API_BASE}/pipelines/lineage?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch lineage events");
+  return res.json();
+}
+
+export async function fetchTrainingJobs(limit = 25) {
+  const res = await fetch(`${API_BASE}/pipelines/training-jobs?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch training jobs");
+  return res.json();
+}
+
+export async function triggerTrainingJob(payload) {
+  const res = await fetch(`${API_BASE}/pipelines/training-jobs/trigger`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || "Failed to trigger training job");
+  }
+  return res.json();
+}
+
+export async function runBackfill(payload) {
+  const res = await fetch(`${API_BASE}/pipelines/backfill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || "Failed to run backfill");
+  }
+  return res.json();
+}
+
 export async function fetchFeatures(search = "") {
   const params = new URLSearchParams({ search });
   const res = await fetch(`${API_BASE}/features?${params.toString()}`);

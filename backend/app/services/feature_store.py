@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 import redis
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -85,18 +85,26 @@ class FeatureStoreService:
         return result
 
     def list_features(self, search: str = "") -> list[dict]:
-        stmt = select(FeatureDefinition)
+        usage_count = func.count(FeatureUsage.id)
+        model_count = func.count(func.distinct(FeatureUsage.model_name))
+        stmt = (
+            select(FeatureDefinition, usage_count.label("usage_count"), model_count.label("model_count"))
+            .outerjoin(FeatureUsage, FeatureUsage.feature_name == FeatureDefinition.name)
+            .group_by(FeatureDefinition.id)
+        )
         if search:
             stmt = stmt.where(FeatureDefinition.name.ilike(f"%{search}%"))
-        features = self.db.scalars(stmt.order_by(FeatureDefinition.name)).all()
+        features = self.db.execute(stmt.order_by(FeatureDefinition.name)).all()
         return [
             {
-                "name": feat.name,
-                "entity_key": feat.entity_key,
-                "dtype": feat.dtype,
-                "schema_version": feat.schema_version,
-                "freshness_seconds": feat.freshness_seconds,
-                "description": feat.description,
+                "name": feat.FeatureDefinition.name,
+                "entity_key": feat.FeatureDefinition.entity_key,
+                "dtype": feat.FeatureDefinition.dtype,
+                "schema_version": feat.FeatureDefinition.schema_version,
+                "freshness_seconds": feat.FeatureDefinition.freshness_seconds,
+                "description": feat.FeatureDefinition.description,
+                "usage_count": int(feat.usage_count or 0),
+                "model_count": int(feat.model_count or 0),
             }
             for feat in features
         ]

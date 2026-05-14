@@ -35,3 +35,13 @@ CREATE TABLE IF NOT EXISTS alert_notifications (
   message TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS training_jobs (
+  id SERIAL PRIMARY KEY,
+  source_run_id VARCHAR(255) NOT NULL,
+  status VARCHAR(64) NOT NULL DEFAULT 'scheduled',
+  trigger_reason TEXT NOT NULL,
+  artifact_path TEXT,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);

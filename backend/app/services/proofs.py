@@ -120,6 +120,8 @@ def run_warehouse_validation(db: Session, checks: list[dict], fail_fast: bool = 
     service = IngestionService(db)
     results: list[dict] = []
 
+    skipped = 0
+
     for check in checks:
         source_name = str(check["source_name"]).lower()
         query = check["query"]
@@ -141,22 +143,43 @@ def run_warehouse_validation(db: Session, checks: list[dict], fail_fast: bool = 
             )
         except Exception as exc:  # noqa: BLE001
             duration = max(perf_counter() - started, 1e-6)
+            error_text = str(exc)
+            is_missing_credentials = (
+                "default credentials were not found" in error_text.lower()
+                or "missing required connection fields" in error_text.lower()
+            )
+
+            if is_missing_credentials:
+                skipped += 1
+                results.append(
+                    {
+                        "source_name": source_name,
+                        "status": "skipped",
+                        "duration_seconds": duration,
+                        "error": error_text,
+                        "reason": "missing_credentials",
+                    }
+                )
+                continue
+
             results.append(
                 {
                     "source_name": source_name,
                     "status": "failed",
                     "duration_seconds": duration,
-                    "error": str(exc),
+                    "error": error_text,
                 }
             )
             if fail_fast:
                 break
 
     success_count = sum(1 for item in results if item["status"] == "ok")
+    failed_count = sum(1 for item in results if item["status"] == "failed")
     return {
         "checks_total": len(results),
         "checks_passed": success_count,
-        "checks_failed": len(results) - success_count,
+        "checks_failed": failed_count,
+        "checks_skipped": skipped,
         "results": results,
     }
 

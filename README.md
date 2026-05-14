@@ -206,3 +206,19 @@ Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5173
 - Release changelog: [docs/CHANGELOG.md](docs/CHANGELOG.md)
 - Release notes snippet (PR/announcement): [docs/RELEASE_NOTES_SNIPPET.md](docs/RELEASE_NOTES_SNIPPET.md)
 - Team run checklist: [docs/TEAM_RUN_CHECKLIST.md](docs/TEAM_RUN_CHECKLIST.md)
+
+## Deploy to Render
+This repository now includes a Render Blueprint at [render.yaml](render.yaml).
+
+1. Push your latest code to GitHub.
+2. In Render, choose **New +** -> **Blueprint**.
+3. Select this repository and apply the blueprint.
+4. Render will provision:
+	- `data-pipeline-ml-api` (FastAPI web service)
+	- `data-pipeline-ml-db` (PostgreSQL)
+	- `data-pipeline-ml-redis` (Key Value)
+	- `data-pipeline-ml-ui` (static React site)
+
+After first deploy:
+- Confirm API health at `/api/v1/health` on the API service URL.
+- If your API service URL differs from `https://data-pipeline-ml-api.onrender.com`, update `VITE_API_BASE` in the static service environment and redeploy UI.

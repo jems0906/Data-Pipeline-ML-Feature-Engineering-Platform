@@ -5,7 +5,7 @@ from app.core.config import settings
 
 
 Base = declarative_base()
-engine = create_engine(settings.postgres_url, future=True)
+engine = create_engine(settings.sqlalchemy_postgres_url, future=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 
 

@@ -41,5 +41,14 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    @property
+    def sqlalchemy_postgres_url(self) -> str:
+        """Normalize Postgres URLs so SQLAlchemy uses psycopg3 in all environments."""
+        if self.postgres_url.startswith("postgresql+psycopg://"):
+            return self.postgres_url
+        if self.postgres_url.startswith("postgresql://"):
+            return self.postgres_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return self.postgres_url
+
 
 settings = Settings()

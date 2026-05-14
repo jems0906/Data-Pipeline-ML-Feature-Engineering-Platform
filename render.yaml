@@ -1,0 +1,55 @@
+services:
+  - type: web
+    name: data-pipeline-ml-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: POSTGRES_URL
+        fromDatabase:
+          name: data-pipeline-ml-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: data-pipeline-ml-redis
+          property: connectionString
+      - key: RAW_DIR
+        value: /var/data/raw
+      - key: PROCESSED_DIR
+        value: /var/data/processed
+      - key: EXPORTS_DIR
+        value: /var/data/exports
+      - key: METADATA_DIR
+        value: /var/data/metadata
+
+  - type: keyvalue
+    name: data-pipeline-ml-redis
+    plan: free
+    ipAllowList: []
+
+  - type: static
+    name: data-pipeline-ml-ui
+    rootDir: frontend
+    buildCommand: npm ci --ignore-scripts=false && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE
+        value: https://data-pipeline-ml-api.onrender.com/api/v1
+
+databases:
+  - name: data-pipeline-ml-db
+    plan: free
+    databaseName: feature_platform
+    user: platform

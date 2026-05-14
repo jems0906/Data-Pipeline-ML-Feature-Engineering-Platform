@@ -4,10 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:esbuild": "if not exist %TEMP%\\esbuild.exe copy /Y .\\node_modules\\@esbuild\\win32-x64\\esbuild.exe %TEMP%\\esbuild.exe >NUL",
-    "dev": "npm run prepare:esbuild && set \"ESBUILD_BINARY_PATH=%TEMP%\\esbuild.exe\" && node ./node_modules/vite/bin/vite.js",
-    "build": "npm run prepare:esbuild && set \"ESBUILD_BINARY_PATH=%TEMP%\\esbuild.exe\" && node ./node_modules/vite/bin/vite.js build",
-    "preview": "node ./node_modules/vite/bin/vite.js preview"
+    "dev": "node ./scripts/run-vite.mjs dev",
+    "build": "node ./scripts/run-vite.mjs build",
+    "preview": "node ./scripts/run-vite.mjs preview"
   },
   "dependencies": {
     "react": "^18.3.1",

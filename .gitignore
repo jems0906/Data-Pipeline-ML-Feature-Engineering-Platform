@@ -16,3 +16,6 @@ data/raw/*.jsonl
 data/exports/*.parquet
 data/exports/*.tfrecord
 data/metadata/*-dictionary.csv
+data/metadata/scale-proof-*.json
+data/metadata/lineage-graph-*.json
+data/metadata/warehouse-validation-*.json
